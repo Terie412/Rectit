@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    图标底色：纯白。
+    前景层本身就带白底，所以这层其实看不见 —— 它的作用是在
+    前景万一缺失时不至于露出透明方块。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+</shape>

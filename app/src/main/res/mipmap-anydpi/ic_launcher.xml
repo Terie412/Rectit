@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    自适应图标（API 26+，本应用 minSdk 就是 26，生效的一直是这一份）。
+
+    前景用位图而不是矢量：图形带渐变，重绘成单色矢量会丢掉它。
+    构图在生成时已经缩到「内容最大半径 35dp」，落在启动器保证可见的
+    66dp 圆内，圆形、方形、圆角方形遮罩都切不到外框。
+    调整构图请改 tools/build_icon.py 的 radius 参数。
+
+    单色层给 Android 13+ 的「按壁纸取色」用，系统只取它的 alpha。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_art" />
+    <monochrome android:drawable="@mipmap/ic_launcher_mono" />
+</adaptive-icon>

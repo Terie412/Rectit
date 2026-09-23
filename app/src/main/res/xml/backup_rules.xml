@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   API 31 以下的备份规则（API 31 起改用 data_extraction_rules.xml）。
+
+  ai_user_settings.xml 里存着用户填的 DeepSeek API Key，
+  sync_user_settings.xml 里存着 GitHub 访问令牌。
+  把凭据交给云端备份等于把它留在了这台手机之外，而恢复回来的那份
+  你既看不见也管不着 —— 两个都排除掉。
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="ai_user_settings.xml" />
+    <exclude domain="sharedpref" path="sync_user_settings.xml" />
+</full-backup-content>

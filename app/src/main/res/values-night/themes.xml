@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    深色下的窗口主题。见 values/themes.xml 的说明 —— 两份文件的名字和
+    子项必须完全一致，否则深色下窗口底会退回浅色那套。
+-->
+<resources>
+
+    <style name="Theme.ExplainDot" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/brand_background</item>
+    </style>
+</resources>

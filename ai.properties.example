@@ -1,0 +1,82 @@
+# ==============================================================================
+#  框选解释 · DeepSeek 参数（示例）
+#
+#  用法：
+#      cp ai.properties.example ai.properties
+#  然后按需改 ai.properties。**这个 example 文件本身不会被读取**，
+#  Gradle 只认 ai.properties；两个都在时以 ai.properties 为准。
+#
+#  改完要重新编译安装才生效：
+#      Android Studio 里点 Run，或者命令行 .\gradlew.bat :app:installDebug
+#
+#  整个文件都可以不要。缺了它构建照样成功，下面每一项都有内置默认值。
+#
+#  **API Key 不在这里，也不在任何编译产物里。** 请在 App 里填：
+#      设置 → AI 服务 → 填写 API Key
+#  它只存在手机上、且被排除在系统备份之外，改完立刻生效、不用重新编译。
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+# 只读这一份的话，下面这些就是出厂值。
+# 只有你确实想改的项才需要写出来，其余留空即用默认值。
+#
+# deepseek.baseUrl=https://api.deepseek.com
+# deepseek.model=deepseek-flash
+# deepseek.useSystemProxy=false
+# deepseek.connectTimeoutSeconds=15
+# deepseek.readTimeoutSeconds=90
+# deepseek.imageQuality=85
+# deepseek.thinking=off
+# deepseek.chatThinking=high
+# deepseek.maxTokens=2048
+# ------------------------------------------------------------------------------
+
+
+# API 地址。国内直连可通，不用挂代理。只有在中转转发时才需要改
+deepseek.baseUrl=https://api.deepseek.com
+
+
+# 模型名。
+#   deepseek-flash      支持图片输入，当前主力，用这个
+#   deepseek-v4-pro     纯文本、更强、更贵，不支持图片，别填
+# 模型名也会随官方下线而失效，所以它在 App 里也能改（设置 → AI 服务），
+# 不必为此重新发版
+deepseek.model=deepseek-flash
+
+
+# 是否允许走系统代理。默认 false。
+# 手机上装过 VPN / 代理类 App 时，系统代理设置可能残留 ——
+# 症状是「Wi-Fi 明明通着，请求却一律超时」。只有网络必须靠代理才能访问
+# api.deepseek.com 时才改成 true
+deepseek.useSystemProxy=false
+
+
+# 超时（秒）。读超时给得宽：视觉请求比纯文本慢，而且要等模型把整段解释写完
+deepseek.connectTimeoutSeconds=15
+deepseek.readTimeoutSeconds=90
+
+
+# 截图压缩质量（1-100）。85 是肉眼无差与体积的平衡点。
+# 注意它省的是流量，不是 token —— 图片按尺寸计费，与文件大小无关。
+# 字太小识别不准时，反而是往上调更有用
+deepseek.imageQuality=85
+
+
+# 思考模式 —— 概念解释。off / low / high / max
+# 必须显式写：DeepSeek 的思考模式是「默认开启、强度默认 high」，
+# 不在请求里关掉，用户框完一次要干等十几秒。
+# 而「解释一个看不懂的词」是知识型任务，链式推理的收益远不抵等待成本
+deepseek.thinking=off
+
+
+# 思考模式 —— 对话理解。
+# 和上面那一项各读各的，默认值不同是故意的：
+# 对话要读懂整张图、还要接住一轮轮追问，判断「他到底在问什么」本身吃推理，
+# 答偏一轮的代价比首字慢三秒大得多
+deepseek.chatThinking=high
+
+
+# 单次回复的长度上限（token）。500 字中文解释约 900 token，2048 留了一倍余量。
+# 设小一点能防啰嗦，设太小解释会被截断
+deepseek.maxTokens=2048

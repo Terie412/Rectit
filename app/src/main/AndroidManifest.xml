@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 调 DeepSeek API。手机直连 api.deepseek.com 实测可通，不需要电脑中转 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 悬浮窗：把圆点画在别的应用之上 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 前台服务：圆点的存活全靠它，否则切个应用就被系统回收 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!--
+        注意这里**没有** FOREGROUND_SERVICE_MEDIA_PROJECTION。
+        截图走的是无障碍通道（跟电源键截屏同源），不建立投屏会话，
+        也就不需要那个权限和服务类型。
+    -->
+
+    <!-- 前台服务必须挂一个常驻通知，API 33+ 需要运行时授权（不给也能跑，只是通知看不见） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 长按达成时震一下。normal 权限，装上就有，不弹框。
+         这是长按成功与否的唯一反馈 —— 那一刻圆点正好隐身，屏幕上什么都看不到 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+        这里**没有** CAMERA，是有意的，不是漏了。
+
+        「相机」走的是 ACTION_IMAGE_CAPTURE（把出图那一步交给系统相机 App），
+        应用自己不碰 Camera 设备。而 Android 有一条反直觉的规则：
+        **声明了 CAMERA，ACTION_IMAGE_CAPTURE 就反过来要求该权限已被授予**；
+        不声明则完全不需要。所以省掉这一行，换来的是「拍张照不弹任何授权框」。
+
+        同理没有 READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE：相册走系统的
+        图片选择器（PickVisualMedia），它按次把用户选中的那一张授权给应用，
+        不需要「读整个图库」这种权限。
+    -->
+
+    <application
+        android:name=".ExplainDotApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ExplainDot">
+
+        <!--
+            首页，也是框选结果的落地页。singleTop 是必需的：悬浮圆点框选完之后
+            会带着截图重新拉起这个 Activity，它已经在栈顶时不能再叠一层实例，
+            否则连框两次就会在「最近任务」里堆出两个首页。
+        -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.ExplainDot"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            设置页：权限状态、怎么用、国产 ROM 的保活说明。
+            这些内容看一次就够了，从首页下沉到这里当二级页面。
+        -->
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.ExplainDot" />
+
+        <!--
+            知识库浏览页：按拼音首字母翻看攒下来的所有概念。
+            也是二级页面，从首页右上角进。
+
+            windowSoftInputMode 是 adjustResize：这一页有搜索框，
+            键盘弹起来时列表要跟着缩，否则下面的概念会被键盘挡住点不到。
+        -->
+        <activity
+            android:name=".ui.KnowledgeActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.ExplainDot"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!--
+            对话理解页：跟模型聊当前这张图。
+            也是二级页面，从概念列表底部的「对话理解」进。
+
+            windowSoftInputMode 同样是 adjustResize：这一页的主要动作就是打字，
+            键盘弹起来时消息列表和输入框都要跟着让位，否则输入框会被挡住。
+        -->
+        <activity
+            android:name=".ui.ChatActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.ExplainDot"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!--
+            foregroundServiceType 是 specialUse：这个服务只负责把圆点画在屏幕上，
+            没有任何采集行为（截图是另一个服务干的）。
+        -->
+        <service
+            android:name=".overlay.OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="reading_assistant_overlay" />
+        </service>
+
+        <!--
+            唯一的截屏通路：借无障碍通道调 takeScreenshot()，跟电源键截屏同源，
+            不建立投屏会话 —— 所以小米的「屏幕共享防护」拦不到它。
+            微信那种在投屏通路里会被打码的内容，走这条路能拿到原图。
+
+            exported 必须是 true：系统要以这个组件名来 bind 它，这是无障碍服务的固定契约。
+            安全性靠 BIND_ACCESSIBILITY_SERVICE 这个 signature 级权限把关，
+            别的应用没有系统签名就绑不上。
+        -->
+        <service
+            android:name=".capture.AccessibilityShotService"
+            android:exported="true"
+            android:label="@string/a11y_shot_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_shot_config" />
+        </service>
+
+        <!--
+            只服务一件事：把「相机拍出来的那张图要写到哪儿」开一个写入口。
+
+            系统相机是另一个应用，它没法直接写本应用的 cacheDir —— 除非走
+            FileProvider 拿到一个临时授权。授权范围由 res/xml/file_paths.xml
+            圈定（只有 pending/ 这一个目录），而且只对本次 Intent 有效。
+
+            exported=false + grantUriPermissions=true 是必须的组合：
+            前者保证没有别人能主动来要；后者保证只有被显式授权的那个 Intent
+            接收方（系统相机）能写。
+
+            authorities 里的 `${applicationId}` 由构建期替换，所以 debug 和
+            release 各自独立 —— 同一台手机上装两个版本不会撞车。
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+
+</manifest>

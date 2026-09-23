@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   API 31 及以上的备份 / 迁移规则。
+
+   ai_user_settings.xml 里存着用户填的 DeepSeek API Key，
+   sync_user_settings.xml 里存着 GitHub 访问令牌。
+   两条路都排除掉：
+     - cloud-backup：别让凭据被传到云端，那份副本你既看不见也管不着
+     - device-transfer：换手机时重新填一次只是几十秒的事，
+       不值得为此让凭据在设备之间流动
+
+   （两边都要写：少了哪一边，对应版本的系统就会按默认规则把它带上。）
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="ai_user_settings.xml" />
+        <exclude domain="sharedpref" path="sync_user_settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="ai_user_settings.xml" />
+        <exclude domain="sharedpref" path="sync_user_settings.xml" />
+    </device-transfer>
+</data-extraction-rules>

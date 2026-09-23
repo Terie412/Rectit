@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    相机那颗按钮要交给系统相机 App 去写文件，所以得有一个 FileProvider 把
+    应用私有的路径开一个「只给这一次、只给这一个文件」的写入口。
+
+    cache-path 对应 context.cacheDir，和 image/PendingImage 的落点一致。
+    两边必须对上：这里的 path 与 PendingImage.DIR_NAME 一旦不一致，
+    系统相机拿到的是个写不进去的 Uri，拍完直接返回失败。
+
+    只声明这一个目录，不声明 files-path / external-path —— FileProvider
+    的规矩是「没写进来的路径一律不认」，范围越小越安全。
+-->
+<paths>
+    <cache-path
+        name="pending"
+        path="pending/" />
+</paths>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    窗口主题。这里只管 Compose 接手之前的那一帧 —— 启动、从后台切回来、
+    以及任务切换器里的预览图。
+
+    **`windowBackground` 必须给。** 用的是平台主题（不是 Material3 的 XML 主题），
+    它的默认窗口底是白的。界面本身由 Compose 画，但冷启动到第一帧之间
+    露出来的就是这块白 —— 深色模式下，一开 App 先闪一下白底。
+    这个值和浅深的对应关系在 values/ 与 values-night/ 的 colors.xml 里。
+
+    父主题跟着深浅各用一档，是为了让平台自己也按对应的明暗走
+    （默认文字色、滚动条这些还没被 Compose 接管的东西）。
+-->
+<resources>
+
+    <style name="Theme.ExplainDot" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/brand_background</item>
+    </style>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    只有 XML 侧用得到的颜色。
+
+    **不要在这里加 Compose 用到的颜色** —— 那套在 ui/theme/Color.kt 里，
+    是唯一来源。这里放重复的值只会多出一个会忘记同步的地方。
+
+    当前只放窗口底色：Compose 画出第一帧之前，屏幕上显示的就是它。
+    系统深浅色由 values-night/ 下的同名资源覆盖，所以两份文件里的名字必须一致。
+
+    值取自 ui/theme/Color.kt 的 BrandBackground / NightBackground。
+    这是一处**无法避免**的重复：Android 的窗口主题读不了 Kotlin 常量。
+    改了那边记得回来改这里（只有这一个色需要）。
+-->
+<resources>
+    <color name="brand_background">#FFF5F7FB</color>
+</resources>
