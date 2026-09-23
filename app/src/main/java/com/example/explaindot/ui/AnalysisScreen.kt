@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -241,6 +244,23 @@ private fun BusyPanel(text: String) {
     }
 }
 
+/**
+ * 概念列表。**分三段：标题固定、列表自己滚、两个按钮固定。**
+ *
+ * ## 为什么不是整页滚动
+ *
+ * 早先这里是「一个 Column 套 verticalScroll」—— 概念有八个就是八张卡加标题，
+ * 一屏放不下，于是整页一起滚：标题被推出屏幕，两个按钮也沉到最底下。
+ * 用户想「重新识别」，得先把列表滚到底才能点到。
+ *
+ * 而这两个按钮回答的是**「这张图我还想再要点什么」** —— 它们和当前这批概念
+ * 是并列的，不是列表的尾巴。列表多长都不该改变它们的位置，所以固定住。
+ *
+ * 标题同理：「点一个看解释」是这一屏的说明，它得一直在。
+ *
+ * 结构和 [TermPanel] 一致（那边也是中间滚、底部固定），
+ * 两处的行为对齐之后用户不用重新学一次。
+ */
 @Composable
 private fun ConceptListPanel(
     concepts: List<Concept>,
@@ -249,59 +269,85 @@ private fun ConceptListPanel(
     onRescan: () -> Unit,
     onChat: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
-    ) {
-        Spacer(Modifier.height(14.dp))
+    Column(modifier = Modifier.fillMaxSize()) {
 
-        if (concepts.isEmpty()) {
-            // 这不是错误，是模型判断这页没有需要解释的词。说得平常一点
-            Text(
-                text = "这页没有需要解释的概念",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "模型看了一圈，没找到会造成理解障碍的词。也可能是框选区选得太小、" +
-                    "或者字太糊 —— 重新框一次大一点的范围试试。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            // 有几个已经在库里，值得单独说一句 —— 那是用户攒下来的东西在起作用，
-            // 也是「不用反复花 token」这件事唯一能被看见的地方
-            val known = concepts.count { it.term in library }
+        // ------------------------------------------------------------------ 上：固定
+        if (concepts.isNotEmpty()) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Spacer(Modifier.height(14.dp))
 
-            Text(
-                text = "点一个看解释",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = if (known > 0) {
-                    "共 ${concepts.size} 个 · 其中 $known 个已有解释，点开不用等"
-                } else {
-                    "共 ${concepts.size} 个"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
+                // 有几个已经在库里，值得单独说一句 —— 那是用户攒下来的东西在起作用，
+                // 也是「不用反复花 token」这件事唯一能被看见的地方
+                val known = concepts.count { it.term in library }
 
-            concepts.forEach { concept ->
-                ConceptCard(
-                    concept = concept,
-                    cached = concept.term in library,
-                    onClick = { onPick(concept) }
+                Text(
+                    text = "点一个看解释",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = if (known > 0) {
+                        "共 ${concepts.size} 个 · 其中 $known 个已有解释，点开不用等"
+                    } else {
+                        "共 ${concepts.size} 个"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
             }
         }
+
+        // ------------------------------------------------------------------ 中：只有这块滚
+        if (concepts.isEmpty()) {
+            // 没有列表可滚，但这一块仍然要占住中间 ——
+            // 否则两个按钮会贴到提示语下面，位置随内容变，就不叫固定了
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+            ) {
+                Spacer(Modifier.height(14.dp))
+
+                // 这不是错误，是模型判断这页没有需要解释的词。说得平常一点
+                Text(
+                    text = "这页没有需要解释的概念",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "模型看了一圈，没找到会造成理解障碍的词。也可能是框选区选得太小、" +
+                        "或者字太糊 —— 重新框一次大一点的范围试试。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // **刻意不设 key。** 设成 term 看着更讲究（重扫时能保住滚动位置），
+                // 但模型偶尔会把同一个词返回两遍 —— 而 LazyColumn 遇到重复 key
+                // 是直接抛 IllegalArgumentException 崩掉，不是忽略。
+                // 为了一个动画效果去换一个线上崩溃的可能，不值。
+                items(concepts) { concept ->
+                    ConceptCard(
+                        concept = concept,
+                        cached = concept.term in library,
+                        onClick = { onPick(concept) }
+                    )
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------ 下：固定
 
         Spacer(Modifier.height(12.dp))
 
@@ -310,7 +356,11 @@ private fun ConceptListPanel(
         // 它们回答的是同一个层面的问题 ——「这张图我还想再要点什么」：
         // 左边是「换一批概念」，右边是「不挑概念了，直接聊」。
         // 上下堆成两行会把一个并列关系说成主次关系，而且多占一行竖向空间。
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
             OutlinedButton(
                 onClick = onRescan,
                 modifier = Modifier.weight(1f)
