@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -33,8 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.explaindot.R
 import com.example.explaindot.chat.ChatMessage
 import com.example.explaindot.chat.ChatSession
 
@@ -277,6 +281,11 @@ private fun ErrorBlock(message: String, canRetry: Boolean, onRetry: () -> Unit) 
  *
  * 发送时立刻清空输入框 —— 内容已经进了历史（用户消息是乐观追加的），
  * 留着它只会让用户以为没发出去。
+ *
+ * 发送键是纸飞机图标（[R.drawable.ic_send]，轮廓取自设计给的位图），
+ * 不是「发送」两个字。除了省下那两个字占的横向位置，更实际的是：
+ * 这一行里输入框才是主角，一个文字按钮的视觉重量跟它相当，
+ * 换成一个中性色的图标之后层级才分得开。
  */
 @Composable
 private fun InputBar(session: ChatSession) {
@@ -286,7 +295,9 @@ private fun InputBar(session: ChatSession) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            // end 从 8dp 收到 4dp：IconButton 自带 12dp 的内边距，
+            // 加上原来的 8dp 会让图标离屏幕右边缘比离左边缘远出半截
+            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.Bottom
     ) {
         OutlinedTextField(
@@ -303,17 +314,25 @@ private fun InputBar(session: ChatSession) {
             shape = RoundedCornerShape(20.dp)
         )
         Spacer(Modifier.width(4.dp))
-        TextButton(
+
+        // IconButton 而不是 TextButton：它自带 48dp 的触摸目标（图标只有 22dp），
+        // 手指点得中，而 TextButton 换成图标之后要自己补这个尺寸
+        IconButton(
             onClick = {
                 session.ask(draft)
                 draft = ""
             },
             enabled = canSend
         ) {
-            Text(
-                text = "发送",
-                style = MaterialTheme.typography.labelLarge,
-                color = if (canSend) {
+            Icon(
+                painter = painterResource(R.drawable.ic_send),
+                // 这个不能省。按钮上只剩一个图形，读屏用户听到的就是这句话；
+                // 漏了它 TalkBack 只会念出按钮的位置，不会说它是干什么的
+                contentDescription = "发送",
+                modifier = Modifier.size(22.dp),
+                // 和原来那行文字按钮用同一组颜色：能发是主题色，不能发是 38% 的灰。
+                // 不靠 IconButton 自动给的禁用色，是为了换图标时视觉不变
+                tint = if (canSend) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)

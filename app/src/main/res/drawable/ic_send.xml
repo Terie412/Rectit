@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    发送。纸飞机，取自设计给的那张位图。
+
+    **为什么是矢量而不是把那张 PNG 直接拷进来：**
+
+    1. 那张图是**纯白的**（唯一颜色是 #FFFFFFFF，其余全透明）——
+       浅色主题下直接贴上去是一片白，看不见。
+    2. 位图只能整体着色，而这里需要跟随按钮状态变色：可发送时是主题色、
+       输入框空着时是 38% 的灰。矢量配合 tint 才能做到，且禁用态和
+       原来那行文字按钮的视觉完全一致。
+    3. 128×128 的位图若显示成 24dp，在 3x 屏上要 72px 才算清晰 ——
+       得再出 2x/3x 几份。矢量任意密度都不糊。
+
+    轮廓是从原图用 OpenCV 提的（approxPolyDP，容差 0.2% 周长），
+    15 个顶点的重建结果与原图 IoU = 0.979 —— 差的那 2% 是抗锯齿边缘，
+    在 24dp 上是一小截亚像素，肉眼不可见。
+
+    **不要拿别的图标覆盖它。** 形状来自用户给的那张图，
+    不是从某个图标库里挑的；顶点的取舍（比如右上那个尖、尾部那道叉）
+    都是照着原图拟合出来的。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    <!-- fillColor 是占位：实际颜色由 Compose 的 tint 决定，见 InputBar。
+         写黑色是为了万一没 tint 也能在浅色底上看见 -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M124,0 L116,3 L1,70 L0,74 L3,77 L30,88 L104,24 L105,25 L47,96 L47,126 L53,126 L71,104 L104,118 L108,116 L127,3 Z" />
+</vector>
