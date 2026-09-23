@@ -91,7 +91,6 @@ class ChatSession(
 
     // ------------------------------------------------------------------ 内部状态
 
-    private var imagePath: String? = null
     private var job: Job? = null
 
     /** 摘要覆盖到 [history] 的哪个下标之前 */
@@ -102,19 +101,30 @@ class ChatSession(
 
     // ------------------------------------------------------------------ 图与清空
 
+    private var imagePath: String? = null
+
+    /** 上一次收到的代号。初值是个 [AnalysisController] 不会发出的值，见 [sameImage] */
+    private var imageGeneration = NO_IMAGE_GENERATION
+
     /**
      * 当前图换了。旧对话（连同摘要、进行中的请求）全部作废。
      *
-     * **进行中的请求要取消。** 不取消的话，旧图那个问题的回答会在几十秒后
-     * 落到新对话里 —— 用户看到一段和眼前这张图完全无关的回答，
-     * 而他根本没法知道那句话从哪来的。
+     * **判据是 [generation]，不是 [path]。** 原来的版本只比路径，于是一个新图
+     * 进来时它认为「还是那张图」，一整场旧对话留在界面上 —— 用户对着新图
+     * 看到的是关于上一张图的问答，而且没有任何线索指向原因。
      *
-     * 路径相同时什么都不做：每次进设置页再回来都会走一遍这里，
-     * 不该把用户聊到一半的内容清掉。
+     * 为什么会这样：图片槽位固定写在一个文件名上（`latest.jpg`），
+     * 截图、相册、相机拿到的图**路径永远是同一个值**。路径根本回答不了
+     * 「图变没变」，而这件事只有 [AnalysisController] 知道 —— 所以它每次换图
+     * 递增一个代号推过来。见 [sameImage] 上的注释。
+     *
+     * **进行中的请求要取消。** 不取消的话，旧图那个问题的回答会在几十秒后
+     * 落到新对话里，和上面是同一类问题。
      */
-    fun onImageChanged(path: String?) {
-        if (path == imagePath) return
+    fun onImageChanged(path: String?, generation: Long) {
+        if (sameImage(imagePath, imageGeneration, path, generation)) return
         imagePath = path
+        imageGeneration = generation
 
         job?.cancel()
         job = null
@@ -279,3 +289,24 @@ class ChatSession(
         val shared: ChatSession by lazy { ChatSession() }
     }
 }
+
+/** 还没收到过任何一张图时的代号。用一个递增计数器永远不会取到的值 */
+internal const val NO_IMAGE_GENERATION = Long.MIN_VALUE
+
+/**
+ * 这两次收到的是不是同一张图。
+ *
+ * **两个字段都要比。** 只比路径就是原来那个 bug：图片槽位固定写在 `latest.jpg`，
+ * 截图、相册、相机拿到的图路径永远一样 —— 于是第二个图进来时被判成「没换」，
+ * 对话历史永远清不掉，用户对着新图看到的是上一张图的问答。
+ *
+ * 抽成纯函数只为一件事：让这个 bug 能被测出来。它的形态是**少比一个字段** ——
+ * 少比字段不报错、不崩、没有任何日志，只会让旧对话静默留下，
+ * 和 `accessibilityState` 那边抽出来的理由是同一个。
+ */
+internal fun sameImage(
+    prevPath: String?,
+    prevGeneration: Long,
+    nextPath: String?,
+    nextGeneration: Long,
+): Boolean = prevPath == nextPath && prevGeneration == nextGeneration

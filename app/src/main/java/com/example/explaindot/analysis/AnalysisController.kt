@@ -140,6 +140,19 @@ class AnalysisController {
     private var image: File? = null
 
     /**
+     * 当前这张图的代号。每次 [load] 进来一张图就加一。
+     *
+     * **为什么路径当不了身份。** 图片槽位固定写在一个文件名上
+     * （见 [com.example.explaindot.image.PendingImage.file]），截图、相册、相机
+     * 拿到的图路径**永远是同一个值**。所以「图变没变」这件事路径答不了，
+     * 而它关系到对话历史要不要作废（[ChatSession.onImageChanged]）。
+     * 代号是唯一能如实回答它的东西。
+     *
+     * 计数器而不是时间戳：同一毫秒内连拍两次要能区分开，而且它不受系统改时间影响。
+     */
+    private var imageGeneration = 0L
+
+    /**
      * 跳转历史。栈顶就是当前正在看的概念。
      *
      * 允许同一个概念在栈里出现多次 —— 从 A→B→C→A 之后按三次返回要依次回到
@@ -229,6 +242,10 @@ class AnalysisController {
      * 上一张图，留着它只会让用户对着新图看到一段答非所问的内容。
      * **推给它而不是让它自己判断** —— "当前是哪张图"的唯一出处在这里，
      * 那边再存一份迟早会对不上。
+     *
+     * 推过去的是 [imageGeneration]，不是路径：槽位固定写在一个文件名上，
+     * 路径恒等于同一个值，双方照着它比会得出「还是那张图」——
+     * 这正是这个功能先前失效的原因。
      */
     fun load(path: String, autoScan: Boolean) {
         scanJob?.cancel()
@@ -245,7 +262,10 @@ class AnalysisController {
         suggestions = emptySet()
         stage = AnalysisStage.Idle
         image = File(path)
-        ChatSession.shared.onImageChanged(path)
+        // 先加再推：`load` 是「换上这张图」的唯一入口，所以在这里递增
+        // 不会漏掉任何一条换图的路（框选、相册、相机都走它）
+        imageGeneration += 1
+        ChatSession.shared.onImageChanged(path, imageGeneration)
         if (autoScan) scan()
     }
 
