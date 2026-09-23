@@ -76,8 +76,8 @@ android {
         // 这个 App 的圆点完全靠前台服务活着，先不踩这个坑。
         // Google Play 当前要求就是 36，够用；等 API 37 的强制期限明确再升，只改这一个数字。
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
