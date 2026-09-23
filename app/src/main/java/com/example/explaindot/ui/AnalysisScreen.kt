@@ -59,23 +59,33 @@ import java.io.File
  */
 
 /**
- * 框选内容的缩略图。
+ * 顶部那条：左边缩略图，右边一句摘要。
  *
- * 留着它不是装饰：一眼看到「框住了什么」，才能判断后面挑出来的概念
+ * 留着缩略图不是装饰：一眼看到「框住了什么」，才能判断后面挑出来的概念
  * 为什么是这几个。解码放在 remember 里，重组时不会反复读盘。
  *
  * [version] 这个参数看着多余，其实是必需的：截图固定写在 latest.jpg，
  * 每框一次都是同一个路径 —— 只拿 path 当 remember 的 key，第二次框选
  * 缩略图会继续显示上一张。调用方每换一张图就换一个 version，把它顶掉。
+ *
+ * ## 为什么不再显示分辨率和文件大小
+ *
+ * 早先这里写着「框选内容 / 1163×1625 px · 174 KB」。那两个数字是**排查问题用的**，
+ * 不是给用户判断的东西 —— 他看缩略图就知道框住了什么，而分辨率既不帮他决定
+ * 下一步做什么，也不能告诉他识别为什么失败。
+ *
+ * 腾出来的位置换成了这一屏真正的结论：有多少概念、几个不用等。
+ * 那句话原先挂在概念列表的标题下面，现在挪上来 —— 它说的是「这张图分析出了什么」，
+ * 属于这条摘要，不属于下面那个列表。
+ *
+ * [summary] 由调用方算好传进来（见 [captureSummary]），这个组件不认识分析状态。
  */
 @Composable
 fun CaptureThumbnail(
     path: String,
     version: Long,
-    sizeLabel: String,
-    weightLabel: String,
-    modifier: Modifier = Modifier,
-    trailing: @Composable () -> Unit = {}
+    summary: String,
+    modifier: Modifier = Modifier
 ) {
     val image: ImageBitmap? = remember(path, version) {
         runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
@@ -84,7 +94,7 @@ fun CaptureThumbnail(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -113,21 +123,46 @@ fun CaptureThumbnail(
 
         Spacer(Modifier.width(12.dp))
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "框选内容",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = "$sizeLabel · $weightLabel",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = summary,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
 
-        trailing()
+/**
+ * 缩略图右边那句摘要。
+ *
+ * 分两种情形，因为它们答的不是同一个问题：
+ *
+ *   - 还没出结果（没识别 / 正在识别 / 识别失败）→ 说**这张图现在什么状态**
+ *   - 出了结果 → 说**分析出了什么**：几个概念、其中几个点开不用等
+ *
+ * 「几个已有解释」是这句话里最值钱的部分：它是用户攒下来的知识库在起作用，
+ * 也是「不用反复花 token」这件事唯一能被看见的地方。
+ *
+ * 还没识别时不写「识别出 0 个概念」—— 那是把「没做过」说成了「做了但没找到」，
+ * 两件事用户要做的事完全不同（一个是点「识别这一张」，一个是换块区域重框）。
+ */
+internal fun captureSummary(
+    stage: AnalysisStage,
+    concepts: List<Concept>,
+    library: ConceptMatcher
+): String = when (stage) {
+    AnalysisStage.Idle -> "还没识别"
+    AnalysisStage.Scanning -> "正在识别…"
+    is AnalysisStage.ScanFailed -> "识别失败"
+
+    else -> if (concepts.isEmpty()) {
+        "没识别出概念"
+    } else {
+        val known = concepts.count { it.term in library }
+        if (known > 0) {
+            "识别出 ${concepts.size} 个概念 · $known 个已有解释"
+        } else {
+            "识别出 ${concepts.size} 个概念"
+        }
     }
 }
 
@@ -245,21 +280,30 @@ private fun BusyPanel(text: String) {
 }
 
 /**
- * 概念列表。**分三段：标题固定、列表自己滚、两个按钮固定。**
+ * 概念列表。**分三段：列表自己滚、上下两块都固定。**
  *
  * ## 为什么不是整页滚动
  *
- * 早先这里是「一个 Column 套 verticalScroll」—— 概念有八个就是八张卡加标题，
- * 一屏放不下，于是整页一起滚：标题被推出屏幕，两个按钮也沉到最底下。
- * 用户想「重新识别」，得先把列表滚到底才能点到。
+ * 早先这里是「一个 Column 套 verticalScroll」—— 概念有八个就是八张卡，
+ * 一屏放不下，于是整页一起滚：两个按钮沉到最底下，用户想「重新识别」
+ * 得先把列表滚到底才能点到。
  *
  * 而这两个按钮回答的是**「这张图我还想再要点什么」** —— 它们和当前这批概念
  * 是并列的，不是列表的尾巴。列表多长都不该改变它们的位置，所以固定住。
  *
- * 标题同理：「点一个看解释」是这一屏的说明，它得一直在。
- *
  * 结构和 [TermPanel] 一致（那边也是中间滚、底部固定），
  * 两处的行为对齐之后用户不用重新学一次。
+ *
+ * ## 为什么顶部没有标题了
+ *
+ * 这里原先有「点一个看解释」加一行「共 N 个 · 其中 M 个已有解释」。
+ * 前者删掉：概念卡本身就是一排可点的东西，旁边还写着「已有」的标记，
+ * 「点一个看解释」是在说一件已经一目了然的事。
+ *
+ * 后者挪去了顶部那条摘要（见 [captureSummary]）—— 它说的是「这张图分析出了
+ * 什么」，和缩略图是同一件事的两半，挂在列表上方反而像在说列表本身。
+ *
+ * 于是这一屏只剩列表和底部那条操作栏，中间那块也不用再垫标题的间距。
  */
 @Composable
 private fun ConceptListPanel(
@@ -271,38 +315,11 @@ private fun ConceptListPanel(
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
 
-        // ------------------------------------------------------------------ 上：固定
-        if (concepts.isNotEmpty()) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                Spacer(Modifier.height(14.dp))
+        // ------------------------------------------------------------------ 上：只有这块滚
 
-                // 有几个已经在库里，值得单独说一句 —— 那是用户攒下来的东西在起作用，
-                // 也是「不用反复花 token」这件事唯一能被看见的地方
-                val known = concepts.count { it.term in library }
-
-                Text(
-                    text = "点一个看解释",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = if (known > 0) {
-                        "共 ${concepts.size} 个 · 其中 $known 个已有解释，点开不用等"
-                    } else {
-                        "共 ${concepts.size} 个"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-        }
-
-        // ------------------------------------------------------------------ 中：只有这块滚
         if (concepts.isEmpty()) {
             // 没有列表可滚，但这一块仍然要占住中间 ——
-            // 否则两个按钮会贴到提示语下面，位置随内容变，就不叫固定了
+            // 否则底部那条会被推上来、贴着提示语，位置随内容变，就不叫固定了
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -330,7 +347,14 @@ private fun ConceptListPanel(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp),
+                // 上下各留一点：上面那条分隔线和第一张卡之间要透气，
+                // 底部不留的话最后一张卡会紧贴操作栏，看着像被切掉了一截
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 14.dp,
+                    bottom = 14.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // **刻意不设 key。** 设成 term 看着更讲究（重扫时能保住滚动位置），
@@ -347,36 +371,46 @@ private fun ConceptListPanel(
             }
         }
 
-        // ------------------------------------------------------------------ 下：固定
+        // ------------------------------------------------------------------ 下：固定的操作条
 
-        Spacer(Modifier.height(12.dp))
-
-        // 两个动作并排，而不是上下堆两行。
+        // **它和上面那条列表之间必须有可见的边界。** 没有的话，
+        // 「列表滚到底了」和「下面是另一块不跟着滚的区域」看起来是一回事 ——
+        // 用户会继续往上滑那段列表，以为按钮也该跟着动。
         //
-        // 它们回答的是同一个层面的问题 ——「这张图我还想再要点什么」：
-        // 左边是「换一批概念」，右边是「不挑概念了，直接聊」。
-        // 上下堆成两行会把一个并列关系说成主次关系，而且多占一行竖向空间。
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        ) {
-            OutlinedButton(
-                onClick = onRescan,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("重新识别")
-            }
-            Spacer(Modifier.width(10.dp))
-            OutlinedButton(
-                onClick = onChat,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("对话理解")
+        // 做法照搬底部导航栏（见 [com.example.explaindot.ui.BottomBar]）：
+        // surface 底 + 一条细分隔线。两个固定栏长得一样，用户不用重新认一次。
+        // 底色之所以看得出区别，是因为页面正文铺在 Scaffold 的 background 上，
+        // 而 background 比 surface 深一档。
+        Surface(color = MaterialTheme.colorScheme.surface) {
+            Column {
+                HorizontalDivider()
+
+                // 两个动作并排，而不是上下堆两行。
+                //
+                // 它们回答的是同一个层面的问题 ——「这张图我还想再要点什么」：
+                // 左边是「换一批概念」，右边是「不挑概念了，直接聊」。
+                // 上下堆成两行会把一个并列关系说成主次关系，而且多占一行竖向空间。
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onRescan,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("重新识别")
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    OutlinedButton(
+                        onClick = onChat,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("对话理解")
+                    }
+                }
             }
         }
-
-        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -637,7 +671,16 @@ private fun StoredEntries(
     }
 }
 
-/** 底部操作行。三个按钮的可用性跟着当前内容变，不给人按了没反应的按钮 */
+/**
+ * 解释页的底部操作条。三个按钮的可用性跟着当前内容变，不给人按了没反应的按钮。
+ *
+ * 不加底色、也不加分隔线。曾经试过底部栏那套（surface 底 + 一条细分隔线），
+ * 在概念列表那一屏还没看出问题，但这里不行 —— 用户正在上下读一份正文，
+ * 一条横线横在正文和按钮之间，像把文章切断了。
+ *
+ * 这两个页面共用同一套结构（[ConceptListPanel] 也是中间滚、底部固定），
+ * 都不靠线条：固定区不跟着滚这件事，用户滑一下就知道。
+ */
 @Composable
 private fun TermActions(
     content: TermContent,
@@ -749,12 +792,4 @@ private fun FailedPanel(message: String, onRetry: () -> Unit) {
             Text("重试")
         }
     }
-}
-
-/** 没解码成 Bitmap 也要能显示尺寸：只读文件头，不占内存 */
-internal fun measureImage(file: File): Pair<String, String> {
-    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    runCatching { BitmapFactory.decodeFile(file.absolutePath, options) }
-    val size = if (options.outWidth > 0) "${options.outWidth}×${options.outHeight} px" else "?"
-    return size to "${file.length() / 1024} KB"
 }

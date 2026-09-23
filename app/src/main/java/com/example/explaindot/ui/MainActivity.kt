@@ -49,8 +49,6 @@ class MainActivity : ComponentActivity() {
     private var status by mutableStateOf(AppStatus.NONE)
     private var imagePath by mutableStateOf<String?>(null)
     private var imageVersion by mutableStateOf(0L)
-    private var sizeLabel by mutableStateOf("")
-    private var weightLabel by mutableStateOf("")
 
     /**
      * 分析状态不归这个 Activity 管 —— 它在 [AnalysisController.shared] 里，
@@ -126,8 +124,6 @@ class MainActivity : ComponentActivity() {
                     status = status,
                     imagePath = imagePath,
                     imageVersion = imageVersion,
-                    sizeLabel = sizeLabel,
-                    weightLabel = weightLabel,
                     stage = stage,
                     concepts = analysis.concepts,
                     termContent = analysis.termContent,
@@ -274,12 +270,16 @@ class MainActivity : ComponentActivity() {
         Log.e(TAG, "相机的写入位置给不出来", it)
     }.getOrNull()
 
+    /**
+     * 换一张待分析图。
+     *
+     * **这里不再量图的尺寸。** 早先它会读一次文件头拿分辨率和大小，
+     * 只为在首页写一行「1163×1625 px · 174 KB」—— 那两个数字已经删了
+     * （见 [CaptureThumbnail] 的注释），顺手把这次读盘也去掉。
+     */
     private fun show(path: String, version: Long) {
-        val (size, weight) = measureImage(File(path))
         imagePath = path
         imageVersion = version
-        sizeLabel = size
-        weightLabel = weight
     }
 
     private fun refresh() {

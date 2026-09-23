@@ -51,8 +51,6 @@ fun MainScreen(
     status: AppStatus,
     imagePath: String?,
     imageVersion: Long,
-    sizeLabel: String,
-    weightLabel: String,
     stage: AnalysisStage,
     concepts: List<Concept>,
     termContent: TermContent,
@@ -124,8 +122,9 @@ fun MainScreen(
                 CaptureThumbnail(
                     path = imagePath,
                     version = imageVersion,
-                    sizeLabel = sizeLabel,
-                    weightLabel = weightLabel
+                    // 摘要由这里算好传下去：它要看分析状态和知识库，
+                    // 而缩略图那个组件不该认识这两个东西
+                    summary = captureSummary(stage, concepts, library)
                 )
                 HorizontalDivider()
                 AnalysisPane(
@@ -335,8 +334,6 @@ private fun MainScreenEmptyPreview() {
             ),
             imagePath = null,
             imageVersion = 0L,
-            sizeLabel = "",
-            weightLabel = "",
             stage = AnalysisStage.Idle,
             concepts = emptyList(),
             termContent = TermContent.Loading,
@@ -376,8 +373,6 @@ private fun MainScreenConceptPreview() {
             ),
             imagePath = null,
             imageVersion = 0L,
-            sizeLabel = "",
-            weightLabel = "",
             stage = AnalysisStage.ConceptList,
             concepts = emptyList(),
             termContent = TermContent.Loading,
