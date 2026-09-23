@@ -113,20 +113,32 @@ def content_box(alpha: np.ndarray):
     直接按 bbox 裁再缩到正方形画布，图形会被拉扁千分之几。补成正方形
     之后 1:1 映射，形状一点不变形。
 
+    **边长取短的那条，不取长的。** 取长边的话，正方形会往短边两侧各多要
+    半个差值 —— 而内容本来就顶到原图边界了，多要的部分只能落到原图之外，
+    拿到的是补边的透明像素。那圈透明在 bleed 模式里会被填成白，
+    于是图标边上镶出一条白线。（满幅的源图最容易踩到：1482x1486 差 4px，
+    就足以在左右各镶 2px 白。）
+
+    取短边的代价是长边被裁掉一点。源图是方形图标，差得极少 ——
+    1299x1302 裁掉 3px，占千分之二，肉眼看不出来。真差得多的话会打警告。
+
     返回 (框, 边长)。框和边长要在前景、单色层之间共用 —— 各算一遍迟早会错位。
     """
     ys, xs = np.nonzero(alpha > 0)
     x0, x1, y0, y1 = int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())
-    cx, cy = (x0 + x1 + 1) / 2.0, (y0 + y1 + 1) / 2.0
-    side = int(np.ceil(max(x1 - x0 + 1, y1 - y0 + 1) / 2.0) * 2)
+    bw, bh = x1 - x0 + 1, y1 - y0 + 1
+    side = min(bw, bh)
 
+    if max(bw, bh) / side > 1.02:
+        print(f"  ⚠ 内容不是正方形（{bw}x{bh}），按短边裁会切掉长边的一部分")
+
+    cx, cy = (x0 + x1 + 1) / 2.0, (y0 + y1 + 1) / 2.0
     left = int(round(cx - side / 2.0)) + PAD
     top = int(round(cy - side / 2.0)) + PAD
-    # 补边区有限，万一框被推到外面就往回夹一下，保证框始终落在画布内
-    max_left = alpha.shape[1] + 2 * PAD - side
-    max_top = alpha.shape[0] + 2 * PAD - side
-    left = max(0, min(left, max_left))
-    top = max(0, min(top, max_top))
+
+    # 上面取短边之后框必然落在内容之内，这两行只是万一将来改回去时的兜底
+    left = max(0, min(left, alpha.shape[1] + 2 * PAD - side))
+    top = max(0, min(top, alpha.shape[0] + 2 * PAD - side))
     return (left, top, left + side, top + side), side
 
 
@@ -203,12 +215,13 @@ def bleed_foreground(src: Image.Image, px: int, box) -> Image.Image:
     """
     前景层：图形铺满整个 108dp 画布，透明处填白。
 
-    **填白是这次特意加的。** 源图的四个圆角本来是透明的，不填的话：
+    **填白。** 源图如果是带圆角、四角透明的（早期那份就是这样），不填的话：
     方形托盘的角落会透出托盘自己的底色（各家用什么不一定），
     而这个图标要出现在桌面、设置列表、最近任务好几处 —— 填白之后
     它在哪儿都是同一个样子，不用去猜底下垫的是什么。
+    源图本身已经满幅不透明时（现在这份），这一步是空操作。
 
-    铺满而不是缩进安全圆内：源图自己已经带了圆角，那就是它的造型。
+    铺满而不是缩进安全圆内：源图自己就带圆角，那就是它的造型。
     再缩一圈的话，托盘里会变成「一块白方 + 中间一个小渐变方」。
     """
     cropped = pad_and_crop(src, box).resize((px, px), Image.LANCZOS)
@@ -277,10 +290,19 @@ def main() -> None:
     src = np.asarray(src_img)
 
     # 裁剪框只算一次，前景和单色层共用 —— 各算一遍迟早会错位
-    box = content_box(src[:, :, 3])[0] if mode == "bleed" else None
+    box = None
     if mode == "bleed":
-        side = content_box(src[:, :, 3])[1]
+        box, side = content_box(src[:, :, 3])
         print(f"  内容裁成正方形 {side}x{side} -> 铺满 108dp 画布")
+
+        # 自检：裁剪框必须落在内容之内。跑到内容之外就会拿到原图没有的透明像素，
+        # 填白之后就是图标边上一条白线 —— 这类问题在缩略图里几乎看不见，
+        # 只能靠这里算出来
+        ay, ax = np.nonzero(src[:, :, 3] > 0)
+        bx0, by0, bx1, by1 = box
+        ok = (bx0 - PAD >= ax.min() and by0 - PAD >= ay.min()
+              and bx1 - PAD <= ax.max() + 1 and by1 - PAD <= ay.max() + 1)
+        print("  裁剪框落在内容之内：%s" % ("是" if ok else "否 —— 会引入透明边，填白后是白线"))
 
     for folder, px in DENSITIES.items():
         target = os.path.join(res, folder)
