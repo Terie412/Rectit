@@ -155,7 +155,9 @@ class OverlayService : Service(), DotView.Listener, SelectionView.Listener {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_dot)
-            .setContentTitle("框选解释已开启")
+            // 名字取资源里的 app_name，不写字面量：这条通知是用户最常看到 App 名字的
+            // 地方之一（每开一次圆点就出现一次），改名字时最容易漏的就是它
+            .setContentTitle(getString(R.string.app_name) + "已开启")
             .setContentText("在圆点上按住，接着划出要解释的范围")
             .setContentIntent(openApp)
             .addAction(0, "关闭", stopService)

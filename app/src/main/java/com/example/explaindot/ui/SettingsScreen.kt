@@ -197,19 +197,19 @@ fun SettingsScreen(
                 StatusCard(
                     title = "屏幕取图",
                     description = when (status.a11yState) {
-                        A11yState.Ready -> "框选解释依赖它，已就绪。"
+                        A11yState.Ready -> "看图学依赖它，已就绪。"
 
                         A11yState.SwitchOff ->
-                            "框选解释依赖它。现在用不了：系统里「无障碍」的总开关被关掉了" +
+                            "看图学依赖它。现在用不了：系统里「无障碍」的总开关被关掉了" +
                                 "（本应用此前是开着的）。到那儿先把页面顶部的总开关打开，" +
                                 "再确认本应用的开关也是开的。"
 
                         A11yState.NotConnected ->
-                            "框选解释依赖它。系统里这个开关显示是开着的，但取图服务没连上 —— " +
+                            "看图学依赖它。系统里这个开关显示是开着的，但取图服务没连上 —— " +
                                 "常见于应用刚更新或被强行停止之后。到系统设置里把这个开关" +
                                 "关掉、再打开一次就好；开关本来就是开的，不用去找别的。"
 
-                        A11yState.NotSelected -> "框选解释依赖它。没有它，长按圆点也截不到图。"
+                        A11yState.NotSelected -> "看图学依赖它。没有它，长按圆点也截不到图。"
                     },
                     granted = status.a11yCapture,
                     actionLabel = if (status.a11yCapture) null else "去开启",
@@ -417,7 +417,7 @@ private fun AiCard(
  * 回来写一次，之后基本不动 —— 所以卡片上只显示一行预览，
  * 编辑放在对话框里（那两段动辄几百字，摊在卡片上会把这一页撑得很长）。
  *
- * 说明里那句「不影响框选解释」是要紧的：用户很可能会在这里写"我是零基础，
+ * 说明里那句「框选后的解释不受影响」是要紧的：用户很可能会在这里写"我是零基础，
  * 请讲得浅白些"，然后奇怪为什么框选出来的解释还是那么绕。
  * 这是两个入口、两套 prompt，各自读各自的设置。
  */
@@ -481,7 +481,7 @@ private fun ChatProfileCard(
 
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "只作用于首页的「对话理解」，不影响框选解释。",
+                text = "只作用于首页的「对话理解」，框选后的解释不受影响。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">框选解释</string>
+    <string name="app_name">看图学</string>
 
     <!--
         无障碍截屏服务。这三条会显示在系统的无障碍设置列表里 ——
         用户要靠它们判断「要不要给这个 App 开权限」，所以必须老实说清用途，
         不要写成含糊的「提升使用体验」。
     -->
-    <string name="a11y_shot_label">框选解释 · 屏幕取图</string>
-    <string name="a11y_shot_summary">让「框选解释」能读到当前屏幕内容</string>
+    <string name="a11y_shot_label">看图学 · 屏幕取图</string>
+    <string name="a11y_shot_summary">让「看图学」能读到当前屏幕内容</string>
     <string name="a11y_shot_description">框选后截取屏幕内容，用来解释其中的概念。本服务只调用系统自带的截屏能力，不监听你的操作、不读取窗口内容、不记录任何输入。</string>
 </resources>

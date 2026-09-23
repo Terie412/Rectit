@@ -124,7 +124,7 @@ class GitHubTargetTest {
         assertFalse("新建请求里不该有 sha", put.body.contains("\"sha\""))
 
         val body = org.json.JSONObject(put.body)
-        assertEquals("框选解释 · 同步知识库", body.getString("message"))
+        assertEquals("看图学 · 同步知识库", body.getString("message"))
         assertEquals("main", body.getString("branch"))
         // 内容要 base64 编好，而且要和原始字节逐字节对得上 ——
         // 这是搬二进制之后唯一能接受的等价性标准

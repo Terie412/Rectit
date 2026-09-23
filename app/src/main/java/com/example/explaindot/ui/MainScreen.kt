@@ -21,9 +21,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.explaindot.R
 import com.example.explaindot.ai.Concept
 import com.example.explaindot.ai.RefineDecision
 import com.example.explaindot.analysis.AnalysisStage
@@ -161,11 +163,15 @@ fun MainScreen(
  * 而用户还会犹豫「上面那个和下面那个是不是一回事」。
  *
  * 只留标题，右侧空着。它的作用就只剩下告诉刚进来的人「这是哪个 App 的页面」。
+ *
+ * 标题读的是 [R.string.app_name]，不是写死的字面量 —— 这是它第二次被改名了。
+ * 上一次改的时候漏了这一处，于是桌面图标叫新名字、进来第一眼还是旧名字。
+ * 现在名字只有 strings.xml 一个来源，改那儿就全都跟着变。
  */
 @Composable
 private fun TitleBar() {
     Text(
-        text = "框选解释",
+        text = stringResource(R.string.app_name),
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier

@@ -474,7 +474,7 @@ class GitHubTarget(
         private const val ACCEPT_RAW = "application/vnd.github.raw"
 
         /** 仓库里那条提交叫什么。固定一句就够，时间由 git 自己记 */
-        private const val COMMIT_MESSAGE = "框选解释 · 同步知识库"
+        private const val COMMIT_MESSAGE = "看图学 · 同步知识库"
 
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
