@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.explaindot.ai.ChatProfile
+import com.example.explaindot.capture.A11yState
 import com.example.explaindot.knowledge.KnowledgeStore
 import com.example.explaindot.ui.theme.ExplainDotTheme
 
@@ -186,12 +187,29 @@ fun SettingsScreen(
                 // 说明只留一句「框选依赖它」。早先这里解释了一大段它跟电源键截屏同源、
                 // 微信里那些变糊的内容能拿到原图 —— 那是**实现细节**，用户不需要知道
                 // 我们怎么截的，只需要知道「没有它框选就没用」。
+                //
+                // 「不能取图」要分三种说法，因为**要去动的东西各不相同**：
+                //   总开关关着   → 先开页面顶部的「无障碍」，再看本应用的开关
+                //   本应用没勾   → 直接在列表里打开本应用
+                //   都开着但没连上 → 把本应用这个开关关掉再打开一次
+                // 混成一句"去开启"的话，后两种情况下用户到了那儿会发现开关本来就是
+                // 开着的，然后不知道该做什么 —— 而这正是真机上连着踩到的两次。
                 StatusCard(
                     title = "屏幕取图",
-                    description = if (status.a11yCapture) {
-                        "框选解释依赖它，已就绪。"
-                    } else {
-                        "框选解释依赖它。没有它，长按圆点也截不到图。"
+                    description = when (status.a11yState) {
+                        A11yState.Ready -> "框选解释依赖它，已就绪。"
+
+                        A11yState.SwitchOff ->
+                            "框选解释依赖它。现在用不了：系统里「无障碍」的总开关被关掉了" +
+                                "（本应用此前是开着的）。到那儿先把页面顶部的总开关打开，" +
+                                "再确认本应用的开关也是开的。"
+
+                        A11yState.NotConnected ->
+                            "框选解释依赖它。系统里这个开关显示是开着的，但取图服务没连上 —— " +
+                                "常见于应用刚更新或被强行停止之后。到系统设置里把这个开关" +
+                                "关掉、再打开一次就好；开关本来就是开的，不用去找别的。"
+
+                        A11yState.NotSelected -> "框选解释依赖它。没有它，长按圆点也截不到图。"
                     },
                     granted = status.a11yCapture,
                     actionLabel = if (status.a11yCapture) null else "去开启",

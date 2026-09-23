@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.explaindot.ai.AiConfig
 import com.example.explaindot.ai.AiUserSettings
 import com.example.explaindot.ai.ChatProfile
+import com.example.explaindot.capture.A11yState
 import com.example.explaindot.capture.AccessibilityShotService
 import com.example.explaindot.overlay.OverlayService
 import com.example.explaindot.permission.OverlayPermission
@@ -29,6 +30,15 @@ data class AppStatus(
     val overlayGranted: Boolean,
     val dotRunning: Boolean,
     val a11yCapture: Boolean,
+
+    /**
+     * 「屏幕取图」的完整状态。设置页拿它决定该显示哪一句 —— 见 [A11yState]。
+     *
+     * 和 [a11yCapture] 并存而不是取代它：大多数消费方（首页的待办清单、
+     * 圆点服务）只关心"能不能截"，逼它们写一遍穷尽的 when 不划算。
+     * 这一项只服务设置页那一处需要说清原因的地方。
+     */
+    val a11yState: A11yState = A11yState.NotSelected,
 
     val aiConfigured: Boolean = false,
     val aiModel: String = "",
@@ -109,20 +119,25 @@ data class AppStatus(
     }
 
     companion object {
-        fun read(context: Context): AppStatus = AppStatus(
-            overlayGranted = OverlayPermission.isGranted(context),
-            dotRunning = OverlayService.isRunning,
-            // 查系统设置而不是服务实例：服务被系统重启的间隙实例会短暂为 null，
-            // 但用户那边的开关其实还开着，界面不该闪一下变回「未开启」
-            a11yCapture = AccessibilityShotService.isEnabled(context),
-            aiConfigured = AiConfig.isConfigured,
-            aiModel = AiConfig.model,
-            aiThinking = AiConfig.thinkingMode,
-            aiChatThinking = AiConfig.chatThinkingMode,
-            aiMaskedKey = AiUserSettings.maskedKey,
-            chatBackgroundPreview = ChatProfile.backgroundPreview,
-            chatSkillPreview = ChatProfile.skillPreview
-        )
+        fun read(context: Context): AppStatus {
+            // 判据是服务实例，不是系统设置 —— 后者会和真实能力不一致，
+            // 真机上因此连续误判过两次。见 A11yState 的注释
+            val a11y = AccessibilityShotService.state(context)
+
+            return AppStatus(
+                overlayGranted = OverlayPermission.isGranted(context),
+                dotRunning = OverlayService.isRunning,
+                a11yCapture = a11y == A11yState.Ready,
+                a11yState = a11y,
+                aiConfigured = AiConfig.isConfigured,
+                aiModel = AiConfig.model,
+                aiThinking = AiConfig.thinkingMode,
+                aiChatThinking = AiConfig.chatThinkingMode,
+                aiMaskedKey = AiUserSettings.maskedKey,
+                chatBackgroundPreview = ChatProfile.backgroundPreview,
+                chatSkillPreview = ChatProfile.skillPreview
+            )
+        }
 
         /**
          * 全是初始值的占位快照。

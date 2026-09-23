@@ -144,42 +144,51 @@ class AccessibilityShotService : AccessibilityService() {
         private val ioExecutor: Executor = Executors.newSingleThreadExecutor()
 
         /**
-         * 用户在系统设置里是否真的开着了本服务。
+         * 「屏幕取图」现在是什么状态。
          *
-         * **这里必须看两个 setting，只看一个就会误判。** 它们回答的是两个不同的问题：
+         * ## 判据是服务实例，设置只用来解释原因
          *
-         *   `ENABLED_ACCESSIBILITY_SERVICES` —— 白名单：用户**勾过**这个服务，
-         *   存的是被勾选的服务列表（冒号分隔的 `包名/类名`）
-         *   `ACCESSIBILITY_ENABLED`        —— 总开关：无障碍这个**功能整体**开着没有（1/0）
+         * 截屏只能通过实例调（`takeScreenshot` 是实例方法），所以 [instance] 为 null
+         * 就是真的取不到图 —— 系统设置里显示成什么样都不改变这一点。
          *
-         * 总开关关掉时，系统**不会**把白名单里的条目清掉。于是只看白名单就会得到
-         * 「已开启」，而实际上一个服务都不生效、`takeScreenshot` 直接抛异常。
+         * **这一点是连着踩了两次才定下来的。** 前两版都只看系统设置，两次都在说谎：
          *
-         * 真机上就是这么踩到的：`accessibility_enabled=0` 配上白名单里仍有本服务，
-         * 设置页显示「框选解释依赖它，已就绪」，而用户长按圆点根本截不到图 ——
-         * 界面上没有任何线索指向真正的原因。
+         *   1. `accessibility_enabled=0` 而白名单里仍留着本服务 —— 只看白名单
+         *      会得出「已就绪」
+         *   2. 两个 setting 都对，但 `dumpsys accessibility` 里 `Bound services:{}`：
+         *      白名单是**直接写 setting** 留下的（MIUI 自己的界面开关没走过），
+         *      系统从未真正 bind。这一次连设置都查不出问题
          *
-         * 查系统设置、而不是看 [instance]：服务被系统重启的间隙 instance 会短暂为 null，
-         * 但用户那边的开关其实还开着，界面不该闪一下变回「未开启」。
+         * 第二种状态在真机上很常见：应用被强行停止、或者更新之后，白名单条目会留着，
+         * 而服务不再被绑定。用户看到的是「已就绪」，然后长按圆点毫无反应。
          *
-         * 判断逻辑抽在 [accessibilityReady] 里，为的是能单测 —— 这个 bug 的形态就是
-         * 「少查了一个条件」，而少查条件不会有任何报错，只会让界面说谎。
+         * ## 关于"服务重启的间隙"
+         *
+         * 早先的版本为了避免那个间隙闪一下，特意不看实例。但这里报的不是
+         * 「未开启」而是「还没连上」，措辞上就是暂时的，比"已就绪"这种谎话好得多。
+         * 而且那个间隙很短，用户下次进设置页就会重新读。
          */
-        fun isEnabled(context: Context): Boolean {
+        fun state(context: Context): A11yState {
             val resolver = context.contentResolver
-            val enabled = Settings.Secure.getInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0)
-            val services = Settings.Secure.getString(
-                resolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            )
-            return accessibilityReady(
-                enabled = enabled,
-                services = services,
+            return accessibilityState(
+                connected = instance != null,
+                enabled = Settings.Secure.getInt(
+                    resolver,
+                    Settings.Secure.ACCESSIBILITY_ENABLED,
+                    0
+                ),
+                services = Settings.Secure.getString(
+                    resolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                ),
                 // flattenToString 给的是 `包名/全类名`，和 setting 里的写法同源
                 expected = ComponentName(context, AccessibilityShotService::class.java)
                     .flattenToString()
             )
         }
+
+        /** 能不能截图。只要那个结论的调用方用这个 */
+        fun isEnabled(context: Context): Boolean = state(context) == A11yState.Ready
 
         /** 拉起系统的无障碍设置页。应用不能自助开启，只能把用户送到那儿 */
         fun openSystemSettings(context: Context) {
@@ -194,43 +203,77 @@ class AccessibilityShotService : AccessibilityService() {
 }
 
 /**
- * 无障碍服务此刻是否真的可用。
+ * 「屏幕取图」此刻处于哪种状态。
  *
- * ## 为什么是两个条件，缺一个就会说谎
+ * 四态而不是布尔，因为「不能取图」有**三种原因，用户要去动的东西各不相同**：
  *
- * [enabled] 和 [services] 来自两个不同的 setting，回答两个不同的问题：
+ *   [Ready]         服务连着，能截
+ *   [SwitchOff]     无障碍总开关关着 —— 去系统设置里先打开页面顶部的「无障碍」，
+ *                   再确认下面本应用的开关。分开说这一句，是因为用户到了那个页面
+ *                   很可能只看到一排应用、找不到自己该动哪个
+ *   [NotSelected]   总开关开着，但本应用没被勾上 —— 直接在列表里打开本应用
+ *   [NotConnected]  系统里显示是开着的，但服务**没被绑定** —— 需要把这个开关
+ *                   关掉再打开一次。这一态是它自己的、不能说成另外两种
  *
- *   `accessibility_enabled`             —— 无障碍这个**功能整体**开着没有（1/0）
- *   `enabled_accessibility_services`    —— 用户**勾过**哪些服务（冒号分隔的 `包名/类名`）
+ * ## 为什么必须有 [NotConnected]
  *
- * **总开关关掉时系统不会清空白名单。** 于是只查白名单会得到「开着」，
- * 而实际上一个服务都不生效 —— 界面显示「已就绪」，用户去框选却什么也截不到，
- * 而且找不到任何线索指向真正的原因。
+ * 前三种状态都只看系统设置就能判断，而**系统设置可以和真实能力不一致**。
+ * 真机上连续踩到两次，两次的界面都是错的：
  *
- * 真机上就是这样：`accessibility_enabled=0`，白名单里仍留着本服务，
- * 设置页显示「框选解释依赖它，已就绪」。
+ *   1. 第一次：`accessibility_enabled=0` 但白名单里还留着本服务 →
+ *      只看白名单会得出「已就绪」
+ *   2. 第二次：两个 setting 都是对的（总开关 1、白名单有本服务），
+ *      而 `dumpsys accessibility` 里 `Bound services:{}` —— 服务根本没连上。
+ *      这一次连设置都查不出问题，只有服务实例能反映真相
  *
- * ## 为什么不看服务实例（[AccessibilityShotService.instance]）
+ * 所以判据必须是 [AccessibilityShotService.instance]：截屏只能通过实例调
+ * （`takeScreenshot` 是实例方法），实例为 null 就是真的取不到图，
+ * 设置里显示成什么样都不改变这一点。设置只用来解释"为什么没连上"。
  *
- * 服务被系统重启的间隙实例会短暂为 null，但用户那边的开关其实还开着 ——
- * 那时报「未开启」是在说谎，用户会跑去系统设置里把一个好好的开关关掉再打开。
- *
- * ## 关于多用户
- *
- * 两个 setting 都是按用户存的，`Settings.Secure` 默认读当前用户，与这里的
- * 服务实例属于同一个用户，不需要额外处理。
- *
- * 抽成纯函数是为了能单测：这个 bug 的形态是「少查了一个条件」，
- * 而少查条件不会有任何报错。
+ * 合成一个布尔的话，"不能取图"就只剩一句话，而用户照着它走完可能还是不行。
  */
-internal fun accessibilityReady(enabled: Int, services: String?, expected: String): Boolean {
-    // 总开关。只认 1 —— 读不到时 getInt 给的是默认值 0，那也正是「没开」
-    if (enabled != 1) return false
+enum class A11yState { Ready, NotConnected, SwitchOff, NotSelected }
 
-    val list = services ?: return false
+/**
+ * 判定无障碍服务的当前状态。纯函数，好单测。
+ *
+ * [connected] 是**权威判据** —— 它来自服务实例，代表"真的能截"。其余三个参数
+ * 只在它说"不能"的时候用来解释原因，见 [A11yState] 的注释。
+ *
+ * 所以顺序是：连着就是 Ready，没连着才去看设置。反过来（先看设置、
+ * 设置对了就说 Ready）正是之前那两次误判的形态。
+ */
+internal fun accessibilityState(
+    connected: Boolean,
+    enabled: Int,
+    services: String?,
+    expected: String
+): A11yState {
+    if (connected) return A11yState.Ready
+
+    // 没连上。下面三种原因里挑一个最可能是用户该去处理的那个 ——
+    // 顺序对应"从最外层到最里层"：总开关 → 白名单 → 都对了但还是没连上
+    if (enabled != 1) return A11yState.SwitchOff
+
+    val list = services ?: return A11yState.NotSelected
     val target = flattenComponent(expected)
-    return list.split(':').any { flattenComponent(it) == target }
+    val selected = list.split(':').any { flattenComponent(it) == target }
+
+    return if (selected) A11yState.NotConnected else A11yState.NotSelected
 }
+
+/**
+ * [accessibilityState] 的布尔投影：只有 [A11yState.Ready] 才算能截图。
+ *
+ * 单独留一个函数，是因为大多数调用方（圆点服务、首页的待办清单）
+ * 只关心"能不能截"，不关心为什么不能。
+ */
+internal fun accessibilityReady(
+    connected: Boolean,
+    enabled: Int,
+    services: String?,
+    expected: String
+): Boolean = accessibilityState(connected, enabled, services, expected) == A11yState.Ready
 
 /**
  * 把 `包名/.类名` 的短写展开成 `包名/全类名`，好让两种写法能比出相等。
